@@ -28,8 +28,8 @@ namespace FMCodeBit
    FMCodeBit [options] [filenames]
 
 Options:
-   -h               Present this help file
-   -s               Search subdirectories when updating CodeBits.
+   -h   Present this help text
+   -s   Search subdirectories when updating CodeBits.
 
 * Filenames may include paths and wildcards.
 
@@ -42,9 +42,15 @@ as 'CodeBits'. The purpose is similar to that of a package managers like
 NuGet however the granularity of sharing is a single source-code file.
 
 For each CodeBit filename on the command line the application reads the
-metadata from and compares against the corresponding master copy on the web.
-If the master copy is newer then it prompts the user and then replaces the
-local copy with the master.
+metadata compares against the corresponding master copy on the web. If the
+master copy has a later version number then it prompts the user and then
+replaces the local copy with the master.
+
+Version numbers are compared using an Alphanumeric algorithm in which
+sequences of digits are compared numerically while non-digit sequences are
+compared according to case-insensitive Unicode ordering. This comparison is
+well-suited to Semantic Versioning. Examples: '10.2' comes after '5.3'; '24b' comes after '8c';
+and 'alpha24' comes before 'Lima10'.
 
 Simple CodeBit Specification
 ----------------------------
@@ -378,12 +384,12 @@ license: https://opensource.org/licenses/BSD-3-Clause
                     while (ib < lb && char.IsDigit(b[ib])) ++ib;
 
                     // Scan leading digits
-                    while (ia-xa > ib-xb)
+                    while (ia - xa > ib - xb)
                     {
                         if (a[xa] != '0') return 1;
                         ++xa;
                     }
-                    while (ib-xb > ia-xa)
+                    while (ib - xb > ia - xa)
                     {
                         if (b[xb] != '0') return -1;
                         ++xb;
@@ -397,17 +403,25 @@ license: https://opensource.org/licenses/BSD-3-Clause
                     }
                 }
 
-                // Return if the characters don't match.
-                else if (ca > cb)
+                // Else compare according to caseless Unicode ordering
+                else
                 {
-                    return 1;
+                    // Convert both to lower case before comparing
+                    ca = char.ToLower(ca);
+                    cb = char.ToLower(cb);
+
+                    // Return if the characters don't match.
+                    if (ca > cb)
+                    {
+                        return 1;
+                    }
+                    else if (cb > ca)
+                    {
+                        return -1;
+                    }
+                    ++ia;
+                    ++ib;
                 }
-                else if (cb > ca)
-                {
-                    return -1;
-                }
-                ++ia;
-                ++ib;
             }
         }
 
