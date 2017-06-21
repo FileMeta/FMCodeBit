@@ -2,6 +2,11 @@
 ---
 name: Program.cs
 description: FMCodeBit main entry point. Manages and updates source code bits.
+version: 1.0
+url: https://github.com/FileMeta/FMCodeBit
+copyrightHolder: Brandt Redd
+copyrightYear: 2017
+license: https://opensource.org/licenses/BSD-3-Clause
 ...
 */
 using System;
@@ -20,49 +25,50 @@ namespace FMCodeBit
 
         const string c_syntax =
 @"Syntax:
-   FMCodeBit [options] [operations]
-
-Operations:
-   -g <url>         Get a CodeBit from an online repository.
-   -u <path>        Update existing CodeBit(s).
-   -h               Present this help file
+   FMCodeBit [options] [filenames]
 
 Options:
+   -h               Present this help file
    -s               Search subdirectories when updating CodeBits.
 
-* Operations, '-g', '-u', and '-h',  may be repeated and mixed.
-* Path for '-u' operation may include wildcards.
-* -s option only affects -u operations that follow (order matters).
+* Filenames may include paths and wildcards.
 
 Examples:
-   FMSrcGet -g https://github.com/FileMeta/MicroYaml/raw/master/MicroYamlReader.cs
-   FMSrcGet -s -u *.cs
+   FMSrcGet -s *.cs
+   FMSrcGet c:\users\me\source\MyProject\MicroYaml.cs
 
-FMCodeBit is support tool for sharing self-contained source code files known
+FMCodeBit is support tool for managing self-contained source code files known
 as 'CodeBits'. The purpose is similar to that of a package managers like
 NuGet however the granularity of sharing is a single source-code file.
 
-The -g 'get' option retrieves the specified CodeBit source code file and
-drops it in the current directory. Typically the source code would be
-found in a repository like GitHub.
+For each CodeBit filename on the command line the application reads the
+metadata from and compares against the corresponding master copy on the web.
+If the master copy is newer then it prompts the user and then replaces the
+local copy with the master.
 
-The -u 'update' option reads the metadata from the specified local CodeBits
-and compares against the corresponding master copy on the web. If the master
-copy is newer then it prompts the user and then replaces the local copy with
-the master.
+Simple CodeBit Specification
+----------------------------
+In the following text, ALL CAPS key words should be interpreted per RFC 2119
+(see https://tools.ietf.org/html/rfc2119).
 
 CodeBits are source code files with a metadata block near the beginning of
 the file. The metadata is in MicroYaml format (a subset of YAML) and uses
 metadata property definitions from Schema.org (http://schema.org). At a
-minimum, the metadata block must include the 'url', 'version', and 'keywords'
-properties and 'CodeBit' must appear in the keywords. Others metadata
-properties are optional.
+minimum, the metadata block MUST include the 'url', 'version', and 'keywords'
+properties and 'CodeBit' MUST appear in the keywords. RECOMMENDED properties
+include name, description, and license. Other metadata properties are
+optional.
 
-The metadata block must begin with a YAML 'Begin Document' indicator which is
-a line with just three dashes. It ends with a YAML 'End Document' indicator
+The version number SHOULD use semantic versioning. See http://semver.org. 
+
+The metadata block MUST begin with a YAML 'Begin Document' indicator which is
+a line with just three dashes. It MUST end with a YAML 'End Document' indicator
 which is a line with just three dots. Typically the metadata block is
-enclosed by comment delimiters appropriate to the programming language. Here
-is a sample metadata block for a C# source code file.
+enclosed by comment delimiters appropriate to the programming language.
+
+Sample Metadata Block
+---------------------
+Here is a sample metadata block for a C# source code file.
 
 /*
 ---
@@ -78,6 +84,7 @@ copyrightYear: 2017
 license: https://opensource.org/licenses/BSD-3-Clause
 ...
 */
+
 ";
 // Column 78                                                                 |
 
@@ -85,12 +92,17 @@ license: https://opensource.org/licenses/BSD-3-Clause
         {
             try
             {
+                // Parse command line
+                bool syntaxError = false;
+                bool writeSyntax = false;
                 bool includeSubdirectories = false;
+                var filepaths = new List<string>();
 
                 // Process the command line
                 if (args.Length == 0)
                 {
-                    Console.WriteLine("Empty command line. Enter 'FMCodeBit -h' for help.");
+                    Console.WriteLine("Empty command line.");
+                    syntaxError = true;
                 }
                 else
                 {
@@ -100,43 +112,45 @@ license: https://opensource.org/licenses/BSD-3-Clause
                         {
                             case "-h":
                             case "-H":
-                                Console.WriteLine(c_syntax);
+                            case "-?":
+                                writeSyntax = true;
                                 break;
 
                             case "-s":
                                 includeSubdirectories = true;
                                 break;
 
-                            case "-g":
-                                ++i;
-                                if (i >= args.Length)
-                                {
-                                    Console.WriteLine("Argument not specified for option '-g'. Use '-h' for help.");
-                                }
-                                else
-                                {
-                                    GetCodeBit(args[i]);
-                                }
-                                break;
-
-                            case "-u":
-                                ++i;
-                                if (i >= args.Length)
-                                {
-                                    Console.WriteLine("Argument not specified for option '-h'. Use '-h' for help.");
-                                }
-                                else
-                                {
-                                    UpdateCodeBits(args[i], includeSubdirectories);
-                                }
-                                break;
-
                             default:
-                                Console.WriteLine("Syntax error: Argument '{0}' not understood. Use '-h' for help.", args[i]);
+                                if (args[i][0] == '-')
+                                {
+                                    Console.WriteLine("Unknown option {0}", args[i]);
+                                }
+                                else
+                                {
+                                    filepaths.Add(args[i]);
+                                }
                                 break;
                         }
                     }
                 }
+
+                // Process commands
+                if (syntaxError)
+                {
+                    Console.WriteLine("Enter \"FMCodeBit -h\" for help.");
+                }
+                else if (writeSyntax)
+                {
+                    Console.WriteLine(c_syntax);
+                }
+                else
+                {
+                    foreach (var path in filepaths)
+                    {
+                        UpdateCodeBits(path, includeSubdirectories);
+                    }
+                }
+
             }
             catch (Exception err)
             {
@@ -148,11 +162,6 @@ license: https://opensource.org/licenses/BSD-3-Clause
             }
 
             Win32Interop.ConsoleHelper.PromptAndWaitIfSoleConsole();
-        }
-
-        static void GetCodeBit(string srcUrl)
-        {
-            Console.WriteLine("GetCodeBit: " + srcUrl);
         }
 
         static void UpdateCodeBits(string filePattern, bool includeSubdirectories)
