@@ -454,6 +454,7 @@ license: https://opensource.org/licenses/BSD-3-Clause
             try
             {
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+                request.CachePolicy = new System.Net.Cache.HttpRequestCachePolicy(System.Net.Cache.HttpRequestCacheLevel.NoCacheNoStore);
                 HttpWebResponse response = (HttpWebResponse)request.GetResponse();
 
                 filename = Path.Combine(workingDirectory, Path.GetRandomFileName() + ".tmp");
