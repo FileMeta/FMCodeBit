@@ -448,14 +448,30 @@ license: https://opensource.org/licenses/BSD-3-Clause
         }
 #endif
 
+        // Even with this cache policy, the underlying system still caches for up to five minutes
+        // There are a lot of discussions about this on StackOverflow. The only functional solution
+        // is to p/invoke to DeleteUrlCacheEntry
+        static readonly System.Net.Cache.HttpRequestCachePolicy s_cachePolicy =
+            new System.Net.Cache.HttpRequestCachePolicy(System.Net.Cache.HttpRequestCacheLevel.BypassCache);
+
         static bool HttpGetToTempFile(string url, string workingDirectory, out string tempFilename)
         {
             string filename = null;
             try
             {
+                HttpWebRequest.DefaultCachePolicy = s_cachePolicy;
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-                request.CachePolicy = new System.Net.Cache.HttpRequestCachePolicy(System.Net.Cache.HttpRequestCacheLevel.NoCacheNoStore);
+                request.CachePolicy = s_cachePolicy;
+                request.Headers.Set("Cache-Control", "max-age=0, no-cache, no-store");
                 HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+
+#if DEBUG
+                // In the five-minute caching mentioned above, this still comes out as false.
+                if (response.IsFromCache)
+                {
+                    Console.WriteLine("From Cache");
+                }
+#endif
 
                 filename = Path.Combine(workingDirectory, Path.GetRandomFileName() + ".tmp");
                 using (Stream outStream = new FileStream(filename, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
