@@ -25,7 +25,10 @@ namespace FMCodeBit
 
         const string c_syntax =
 @"Syntax:
-   FMCodeBit [options] [filenames]
+   Retrieve a codebit to the local directory
+     FMCodeBit <url>
+   Update CodeBits in the local directory
+     FMCodeBit [options] [filenames]
 
 Options:
    -h   Present this help text
@@ -34,15 +37,21 @@ Options:
 * Filenames may include paths and wildcards.
 
 Examples:
-   FMSrcGet -s *.cs
-   FMSrcGet c:\users\me\source\MyProject\MicroYaml.cs
+   FMCodeBit -s *.cs
+   FMCodeBit c:\users\me\source\MyProject\MicroYamlReader.cs
+   FMCodeBit https://github.com/FileMeta/MicroYaml/raw/master/MicroYamlReader.cs
 
 FMCodeBit is support tool for managing self-contained source code files known
 as 'CodeBits'. The purpose is similar to that of a package managers like
 NuGet however the granularity of sharing is a single source-code file.
 
-For each CodeBit filename on the command line the application reads the
-metadata compares against the corresponding master copy on the web. If the
+In the first use case, you specify the URL of a codebit on the command line.
+FMCodeBit will retrieve that codebit and store it in the current local
+directory.
+
+In the second use case, you specfify one or more local filenames on the command
+line. Wildcards are acceptable. For each CodeBit filename the application reads the
+metadata and compares against the corresponding master copy on the web. If the
 master copy has a later version number then it prompts the user and then
 replaces the local copy with the master.
 
@@ -153,7 +162,14 @@ license: https://opensource.org/licenses/BSD-3-Clause
                 {
                     foreach (var path in filepaths)
                     {
-                        UpdateCodeBits(path, includeSubdirectories);
+                        if (path.StartsWith("http"))
+                        {
+                            RetrieveCodeBit(path);
+                        }
+                        else
+                        {
+                            UpdateCodeBits(path, includeSubdirectories);
+                        }
                     }
                 }
 
@@ -168,6 +184,75 @@ license: https://opensource.org/licenses/BSD-3-Clause
             }
 
             Win32Interop.ConsoleHelper.PromptAndWaitIfSoleConsole();
+        }
+
+        static void RetrieveCodeBit(string url)
+        {
+            var options = new Yaml.YamlReaderOptions();
+            options.IgnoreTextOutsideDocumentMarkers = true;
+
+            Console.WriteLine("Retrieving CodeBit: " + url);
+
+            Console.WriteLine("   Reading master copy from the web...");
+            string tempFileName = null;
+            try
+            {
+                string currentDirectory = Environment.CurrentDirectory;
+                if (!HttpGetToTempFile(url, currentDirectory, out tempFileName)) return;
+
+                var remoteDict = new Dictionary<string, string>();
+                try
+                {
+                    Yaml.MicroYaml.LoadFile(tempFileName, options, remoteDict);
+                }
+                catch (Exception err)
+                {
+                    Console.WriteLine("   YAML Syntax Error on master copy: " + err.Message);
+                    return;
+                }
+
+                if (!HasKeyword(remoteDict, "CodeBit"))
+                {
+                    Console.WriteLine("   Master Copy is not a CodeBit.");
+                    return;
+                }
+
+                if (!remoteDict.ContainsKey("url"))
+                {
+                    Console.WriteLine("    Master Copy is missing 'url' property.");
+                    return;
+                }
+
+                string name;
+                if (!remoteDict.TryGetValue("name", out name))
+                {
+                    Console.WriteLine("   Error: Master CodeBit missing 'name' property.");
+                    return;
+                }
+
+                Console.WriteLine("   name: {0}", name);
+                WriteIfPresent(remoteDict, "description");
+                WriteIfPresent(remoteDict, "version");
+
+                // Create full path for the retrieved compy
+                string targetPath = Path.Combine(currentDirectory, name);
+                if (File.Exists(targetPath))
+                {
+                    Console.Write("   Local file, '{0}' already exists. Use update mode instead.", targetPath);
+                    return;
+                }
+
+                File.Move(tempFileName, targetPath);
+                Console.WriteLine("   CodeBit '{0}' has been retrieved to '{1}'.", Path.GetFileName(targetPath), Path.GetDirectoryName(targetPath));
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(tempFileName) && File.Exists(tempFileName))
+                {
+                    File.Delete(tempFileName);
+                }
+            }
+
         }
 
         static void UpdateCodeBits(string filePattern, bool includeSubdirectories)
@@ -315,7 +400,7 @@ license: https://opensource.org/licenses/BSD-3-Clause
         {
             string value;
             if (!dict.TryGetValue(key, out value)) return false;
-            Console.WriteLine(string.Format("   {0}: {1}", key, value));
+            Console.WriteLine("   {0}: {1}", key, value);
             return true;
         }
 
