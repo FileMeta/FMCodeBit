@@ -1,6 +1,8 @@
 # FMCodeBit
 FMCodeBit is support tool for managing self-contained source code files known as 'CodeBits'. The purpose is similar to that of a package managers like [NuGet](http://www.nuget.org/) however the granularity of sharing is a single source code file. A structured comment at the beginning of the file indicates where to find the master copy so that automated tools can retrieve and update CodeBits to the latest version.
 
+## IT&C 210 was here!
+
 CodeBits used in this project:
 - [MicroYaml](https://github.com/FileMeta/MicroYaml)
 - [ConsoleHelper](https://github.com/FileMeta/ConsoleHelper)
